@@ -1,20 +1,59 @@
-import Redis from "ioredis";
+import { createClient } from "redis";
 
-export const redis = new Redis(process.env.REDIS_URL, {
-  lazyConnect: true,
-  maxRetriesPerRequest: null,
+const redisUrl = process.env.REDIS_URL;
+
+if (!redisUrl) {
+  throw new Error("REDIS_URL is missing from environment variables");
+}
+
+export const redisClient = createClient({
+  url: redisUrl,
+  socket: {
+    reconnectStrategy(retries) {
+      if (retries > 10) {
+        return new Error("Redis reconnect limit reached");
+      }
+
+      return Math.min(retries * 500, 3000);
+    },
+  },
 });
 
-redis.on("error", (error) => {
+redisClient.on("error", (error) => {
   console.error("Redis connection error:", error.message);
 });
 
-export const connectRedis = async () => {
-  if (redis.status === "wait") {
-    await redis.connect();
+redisClient.on("connect", () => {
+  console.log("Connecting to Redis...");
+});
+
+redisClient.on("ready", () => {
+  console.log("Redis connection ready");
+});
+
+redisClient.on("reconnecting", () => {
+  console.log("Redis reconnecting...");
+});
+
+export async function connectRedis() {
+  try {
+    if (!redisClient.isOpen) {
+      await redisClient.connect();
+    }
+
+    return redisClient.isReady;
+  } catch (error) {
+    console.error("Redis connection failed:", error.message);
+    return false;
   }
+}
 
-  await redis.ping();
+export function isRedisReady() {
+  return redisClient.isReady;
+}
 
-  console.log("Redis connected successfully");
-};
+export async function disconnectRedis() {
+  if (redisClient.isOpen) {
+    await redisClient.quit();
+  }
+}

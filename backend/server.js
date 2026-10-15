@@ -15,14 +15,19 @@ import { redis, connectRedis } from "./src/config/redis.js";
 
 import authRoutes from "./src/routes/auth.routes.js";
 import passwordRoutes from "./src/routes/password.routes.js";
+import teamRoutes from "./src/routes/team.routes.js";
+import oauthRoutes from "./src/routes/oauth.routes.js";
+import taskCommentRoutes from "./src/routes/task-comment.routes.js";
 
 import { configurePassport } from "./src/config/passport.js";
-import oauthRoutes from "./src/routes/oauth.routes.js";
 
 import {
   notFoundHandler,
   errorHandler,
 } from "./src/middlewares/error.middleware.js";
+
+import projectRoutes from "./src/routes/project.routes.js";
+import taskRoutes from "./src/routes/task.routes.js";
 
 const config = validateEnv();
 
@@ -37,6 +42,7 @@ export { app, server, startServer };
 if (config.nodeEnv === "production") {
   app.set("trust proxy", 1);
 }
+
 // Security middleware
 app.use(helmet());
 
@@ -73,9 +79,8 @@ app.use(
   }),
 );
 
-configurePassport();
-
 // Passport configuration
+configurePassport();
 app.use(passport.initialize());
 
 // Root endpoint
@@ -103,7 +108,7 @@ app.get("/api/v1/health", async (req, res) => {
       timestamp: new Date().toISOString(),
     });
   } catch (error) {
-    console.error("Health check failed:", error.message);
+    console.error("Health check failed:", error);
 
     return res.status(503).json({
       success: false,
@@ -116,23 +121,30 @@ app.get("/api/v1/health", async (req, res) => {
 app.use("/api/v1/auth", authRoutes);
 app.use("/api/v1/password", passwordRoutes);
 app.use("/api/v1/auth", oauthRoutes);
+app.use("/api/v1/teams", teamRoutes);
+app.use("/api/v1", projectRoutes);
+app.use("/api/v1", taskRoutes);
+app.use("/api/v1", taskCommentRoutes);
 
 // Error handling
 app.use(notFoundHandler);
 app.use(errorHandler);
+app.use(errorMiddleware);
 
 let isShuttingDown = false;
 
+// Graceful resource cleanup
 const closeResource = async (name, closeFn) => {
   try {
     await closeFn();
     console.log(`${name} closed successfully`);
   } catch (error) {
-    console.error(`Failed to close ${name}:`, error.message);
+    console.error(`Failed to close ${name}:`, error);
     throw error;
   }
 };
 
+// Graceful shutdown
 const shutdown = async (signal) => {
   if (isShuttingDown) return;
 
@@ -144,16 +156,22 @@ const shutdown = async (signal) => {
     if (server.listening) {
       await new Promise((resolve, reject) => {
         server.close((error) => {
-          if (error) return reject(error);
-          resolve();
+          if (error) {
+            reject(error);
+          } else {
+            resolve();
+          }
         });
       });
     }
 
-    // Close both resources even if one fails
     const results = await Promise.allSettled([
       closeResource("PostgreSQL pool", () => pool.end()),
-      closeResource("Redis connection", () => redis.quit()),
+      closeResource("Redis connection", async () => {
+        if (redis.isOpen) {
+          await redis.quit();
+        }
+      }),
     ]);
 
     const failed = results.filter((result) => result.status === "rejected");
@@ -164,15 +182,32 @@ const shutdown = async (signal) => {
 
     console.log("Task-Flow shut down successfully");
   } catch (error) {
-    console.error("Shutdown error:", error.message);
+    console.error("Shutdown error:", error);
     process.exitCode = 1;
   }
 };
 
+// Start the server
 async function startServer() {
+  let startupStep = "initialization";
+
   try {
+    startupStep = "PostgreSQL connection";
+    console.log("Connecting to PostgreSQL...");
+
     await connectDatabase();
+
+    console.log("PostgreSQL connected successfully.");
+
+    startupStep = "Redis connection";
+    console.log("Connecting to Redis...");
+
     await connectRedis();
+
+    console.log("Redis connected successfully.");
+
+    startupStep = "HTTP server startup";
+    console.log(`Starting server on port ${config.port}...`);
 
     await new Promise((resolve, reject) => {
       const onError = (error) => {
@@ -192,16 +227,33 @@ async function startServer() {
     });
 
     console.log(`Task-Flow API running at http://localhost:${config.port}`);
+
     console.log(`Environment: ${config.nodeEnv}`);
   } catch (error) {
-    console.error("Failed to start Task-Flow:", error.message);
-
-    await Promise.allSettled([pool.end(), redis.quit()]);
+    console.error(`\nFailed during: ${startupStep}`);
+    console.error("Full error:", error);
+    console.error("Error message:", error?.message);
+    console.error("Error stack:", error?.stack);
 
     process.exitCode = 1;
+
+    try {
+      await pool.end();
+    } catch (cleanupError) {
+      console.error("PostgreSQL cleanup failed:", cleanupError);
+    }
+
+    try {
+      if (redis.isOpen) {
+        await redis.quit();
+      }
+    } catch (cleanupError) {
+      console.error("Redis cleanup failed:", cleanupError);
+    }
   }
 }
 
+// Handle termination signals
 process.once("SIGINT", () => shutdown("SIGINT"));
 process.once("SIGTERM", () => shutdown("SIGTERM"));
 

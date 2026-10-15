@@ -25,3 +25,27 @@ export const validate = (schema) => {
     next();
   };
 };
+
+export function validateRequest(schema, source = "body") {
+  return function (req, res, next) {
+    try {
+      const parsed = schema.parse(req[source]);
+
+      req[source] = parsed;
+      next();
+    } catch (error) {
+      if (error.name === "ZodError") {
+        return res.status(400).json({
+          success: false,
+          message: "Validation failed",
+          errors: error.issues.map((issue) => ({
+            field: issue.path.join("."),
+            message: issue.message,
+          })),
+        });
+      }
+
+      next(error);
+    }
+  };
+}

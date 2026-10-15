@@ -4,6 +4,8 @@ import argon2 from "argon2";
 
 import { pool } from "../config/database.js";
 import { sendPasswordResetLink } from "./email.service.js";
+import { updateProject } from "../repositories/project.repository.js";
+import { deleteProject } from "../repositories/project.repository.js";
 
 const hashToken = (token) => createHash("sha256").update(token).digest("hex");
 
@@ -117,3 +119,38 @@ export const resetPassword = async ({ token, password }) => {
     client.release();
   }
 };
+
+export async function updateProjectService({
+  teamId,
+  projectId,
+  userId,
+  name,
+  description,
+}) {
+  if (!userId) {
+    const error = new Error("Authentication required");
+    error.statusCode = 401;
+    throw error;
+  }
+
+  return updateProject({
+    teamId,
+    projectId,
+    userId,
+    name,
+    description,
+  });
+}
+export async function deleteProjectService({ teamId, projectId, userId }) {
+  if (!userId) {
+    const error = new Error("Authentication required");
+    error.statusCode = 401;
+    throw error;
+  }
+
+  return deleteProject({
+    teamId,
+    projectId,
+    userId,
+  });
+}

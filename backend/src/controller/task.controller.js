@@ -3,6 +3,7 @@ import {
   listTasksQuerySchema,
   assignTaskUserSchema,
   unassignTaskUserParamsSchema,
+  updateTaskSchema,
 } from "../validators/task.validator.js";
 
 import {
@@ -203,6 +204,48 @@ export async function deleteTaskController(req, res, next) {
       success: true,
       message: "Task deleted successfully",
       data: deletedTask,
+    });
+  } catch (error) {
+    next(error);
+  }
+}
+
+export async function updateTaskController(req, res, next) {
+  try {
+    const validation = updateTaskSchema.safeParse(req.body);
+
+    if (!validation.success) {
+      return res.status(400).json({
+        success: false,
+        message: "Validation failed",
+        errors: validation.error.issues.map((issue) => ({
+          field: issue.path.join("."),
+          message: issue.message,
+        })),
+      });
+    }
+
+    const userId = req.session?.userId ?? req.user?.id;
+
+    if (!userId) {
+      return res.status(401).json({
+        success: false,
+        message: "Authentication required",
+      });
+    }
+
+    const task = await updateTaskService({
+      teamId: req.params.teamId,
+      projectId: req.params.projectId,
+      taskId: req.params.taskId,
+      userId,
+      updates: validation.data,
+    });
+
+    return res.status(200).json({
+      success: true,
+      message: "Task updated successfully",
+      data: task,
     });
   } catch (error) {
     next(error);

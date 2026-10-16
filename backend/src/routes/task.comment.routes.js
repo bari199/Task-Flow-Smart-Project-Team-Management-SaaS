@@ -1,12 +1,12 @@
 import { Router } from "express";
-import { authenticate } from "../middleware/authenticate.middleware.js";
+import { authenticate } from "../middlewares/authenticate.middleware.js";
 
 import {
   createTaskCommentController,
   listTaskCommentsController,
   updateTaskCommentController,
   deleteTaskCommentController,
-} from "../controllers/task-comment.controller.js";
+} from "../controller/task.comment.controller.js";
 
 const router = Router();
 

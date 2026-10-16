@@ -4,10 +4,10 @@ import { authenticate } from "../middlewares/authenticate.middleware.js";
 import { getMyTeamsController } from "../controller/team.controller.js";
 import { getTeamDetailsController } from "../controller/team.controller.js";
 import { updateTeamController } from "../controller/team.controller.js";
-import { createTeamInvitationController } from "../controllers/team.controller.js";
-import { acceptTeamInvitationController } from "../controllers/team.controller.js";
-import { updateTeamMemberRoleController } from "../controllers/team.controller.js";
-import { removeTeamMemberController } from "../controllers/team.controller.js";
+import { createTeamInvitationController } from "../controller/team.controller.js";
+import { acceptTeamInvitationController } from "../controller/team.controller.js";
+import { updateTeamMemberRoleController } from "../controller/team.controller.js";
+import { removeTeamMemberController } from "../controller/team.controller.js";
 
 const router = Router();
 

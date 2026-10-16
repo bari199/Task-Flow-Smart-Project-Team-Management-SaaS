@@ -2,8 +2,8 @@ import {
   createTeamSchema,
   createTeamInvitationSchema,
   acceptTeamInvitationSchema,
+  updateTeamSchema,
   updateTeamMemberRoleSchema,
-  updateTeamMemberRoleService,
 } from "../validators/team.validator.js";
 
 import {
@@ -14,7 +14,9 @@ import {
   acceptTeamInvitationService,
   createTeamInvitationService,
   removeTeamMemberService,
+  updateTeamMemberRoleService,
 } from "../services/team.service.js";
+
 import { updateTaskSchema } from "../validators/task.validator.js";
 import { updateTaskService } from "../services/task.service.js";
 
@@ -33,7 +35,6 @@ export async function createTeamController(req, res, next) {
       });
     }
 
-    // Prefer the authenticated session's user ID.
     const ownerId = req.session?.userId ?? req.user?.id;
 
     if (!ownerId) {
@@ -96,25 +97,6 @@ export async function createTeamInvitationController(req, res, next) {
   } catch (error) {
     next(error);
   }
-}
-
-export async function findTeamsByUserId(userId) {
-  const result = await pool.query(
-    `SELECT
-       t.id,
-       t.name,
-       t.slug,
-       t.created_at,
-       tm.role
-     FROM team_members AS tm
-     INNER JOIN teams AS t
-       ON t.id = tm.team_id
-     WHERE tm.user_id = $1
-     ORDER BY t.created_at DESC`,
-    [userId],
-  );
-
-  return result.rows;
 }
 
 export async function getMyTeamsController(req, res, next) {
@@ -210,6 +192,10 @@ export async function acceptTeamInvitationController(req, res, next) {
       return res.status(400).json({
         success: false,
         message: "Invalid invitation token format",
+        errors: validation.error.issues.map((issue) => ({
+          field: issue.path.join("."),
+          message: issue.message,
+        })),
       });
     }
 

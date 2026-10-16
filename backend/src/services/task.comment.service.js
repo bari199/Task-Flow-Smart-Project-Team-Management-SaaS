@@ -3,7 +3,7 @@ import {
   listTaskComments,
   updateTaskComment,
   deleteTaskComment,
-} from "../repositories/task-comment.repository.js";
+} from "../repositories/task.comment.repository.js";
 
 export const createTaskCommentService = (data) => createTaskComment(data);
 

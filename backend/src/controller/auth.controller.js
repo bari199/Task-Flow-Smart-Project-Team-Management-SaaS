@@ -7,17 +7,22 @@ import {
 } from "../services/auth.service.js";
 
 import { createEmailOtp } from "../services/otp.service.js";
+
 import { sendVerificationOtp } from "../services/email.service.js";
 
+// Save session using a Promise
 const saveSession = (session) =>
   new Promise((resolve, reject) => {
     session.save((error) => {
-      if (error) return reject(error);
+      if (error) {
+        return reject(error);
+      }
+
       resolve();
     });
   });
 
-// Register
+// REGISTER
 export const register = async (req, res, next) => {
   try {
     const user = await registerUser(req._validatedBody);
@@ -45,11 +50,11 @@ export const register = async (req, res, next) => {
       data: { user },
     });
   } catch (error) {
-    next(error);
+    return next(error);
   }
 };
 
-// Verify email
+// VERIFY EMAIL
 export const verifyEmail = async (req, res, next) => {
   try {
     const valid = await verifyUserEmail(req._validatedBody);
@@ -66,11 +71,11 @@ export const verifyEmail = async (req, res, next) => {
       message: "Email verified successfully. You can now log in.",
     });
   } catch (error) {
-    next(error);
+    return next(error);
   }
 };
 
-// Resend verification OTP
+// RESEND VERIFICATION OTP
 export const resendVerification = async (req, res, next) => {
   try {
     const email = req._validatedBody.email.trim().toLowerCase();
@@ -85,7 +90,7 @@ export const resendVerification = async (req, res, next) => {
       [email],
     );
 
-    // Return the same response whether the account exists or not
+    // Use the same response if the account is unavailable
     if (result.rowCount === 0) {
       return res.status(200).json({
         success: true,
@@ -131,21 +136,27 @@ export const resendVerification = async (req, res, next) => {
       message: "If verification is available, a new code will be sent.",
     });
   } catch (error) {
-    next(error);
+    return next(error);
   }
 };
 
-// Login
+// LOGIN
 export const login = async (req, res, next) => {
   try {
+    // Validate credentials and authenticate the user
     const user = await authenticateUser(req._validatedBody);
 
+    // Regenerate session to prevent session fixation
     req.session.regenerate(async (error) => {
-      if (error) return next(error);
+      if (error) {
+        return next(error);
+      }
 
-      req.session.userId = user.id;
+      // Store the authenticated user's ID
+      req.session.userId = user.id ?? user._id;
 
       try {
+        // Save session before sending the response
         await saveSession(req.session);
 
         return res.status(200).json({
@@ -154,15 +165,15 @@ export const login = async (req, res, next) => {
           data: { user },
         });
       } catch (saveError) {
-        next(saveError);
+        return next(saveError);
       }
     });
   } catch (error) {
-    next(error);
+    return next(error);
   }
 };
 
-// Get current user
+// GET CURRENT USER
 export const getMe = async (req, res) => {
   return res.status(200).json({
     success: true,
@@ -172,11 +183,16 @@ export const getMe = async (req, res) => {
   });
 };
 
-// Logout
-export const logout = (req, res, next) => {
-  req.session.destroy((error) => {
-    if (error) return next(error);
+// LOGOUT
 
+export const logout = (req, res, next) => {
+  // Destroy the current session
+  req.session.destroy((error) => {
+    if (error) {
+      return next(error);
+    }
+
+    // Clear the session cookie
     res.clearCookie(process.env.SESSION_COOKIE_NAME || "taskflow.sid", {
       httpOnly: true,
       secure: process.env.NODE_ENV === "production",

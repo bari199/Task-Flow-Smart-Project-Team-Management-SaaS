@@ -3,7 +3,7 @@ import {
   listTaskCommentsService,
   updateTaskCommentService,
   deleteTaskCommentService,
-} from "../services/task-comment.service.js";
+} from "../services/task.comment.service.js";
 
 import {
   createTaskCommentSchema,

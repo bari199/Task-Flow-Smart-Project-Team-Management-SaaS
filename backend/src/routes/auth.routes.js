@@ -19,6 +19,10 @@ import {
   verifyEmailSchema,
   resendOtpSchema,
 } from "../validators/auth.validator.js";
+import {
+  loginRateLimiter,
+  otpRateLimiter,
+} from "../middlewares/rate.limit.middleware.js";
 
 const router = Router();
 
@@ -29,19 +33,19 @@ const registrationLimiter = rateLimit({
   legacyHeaders: false,
 });
 
-const loginLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000,
-  limit: 10,
-  standardHeaders: true,
-  legacyHeaders: false,
-});
+// const loginLimiter = rateLimit({
+//   windowMs: 15 * 60 * 1000,
+//   limit: 10,
+//   standardHeaders: true,
+//   legacyHeaders: false,
+// });
 
-const otpLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000,
-  limit: 5,
-  standardHeaders: true,
-  legacyHeaders: false,
-});
+// const otpLimiter = rateLimit({
+//   windowMs: 15 * 60 * 1000,
+//   limit: 5,
+//   standardHeaders: true,
+//   legacyHeaders: false,
+// });
 
 router.post(
   "/register",
@@ -52,19 +56,19 @@ router.post(
 
 router.post(
   "/verify-email",
-  otpLimiter,
+  otpRateLimiter,
   validate(verifyEmailSchema),
   verifyEmail,
 );
 
 router.post(
   "/resend-verification",
-  otpLimiter,
+  otpRateLimiter,
   validate(resendOtpSchema),
   resendVerification,
 );
 
-router.post("/login", loginLimiter, validate(loginSchema), login);
+router.post("/login", loginRateLimiter, validate(loginSchema), login);
 
 router.get("/me", authenticate, getMe);
 

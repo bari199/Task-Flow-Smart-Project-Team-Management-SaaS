@@ -1,10 +1,63 @@
-import { createProject } from "../repositories/project.repository.js";
+import {
+  createProject,
+  deleteProject,
+  updateProject,
+} from "../repositories/project.repository.js";
+
 import {
   findProjectsByTeam,
   findProjectDetails,
   addProjectMember,
   removeProjectMember,
 } from "../repositories/project.repository.js";
+
+import { getCache, setCache } from "../utils/cache.js";
+
+import { projectListCacheKey } from "../utils/cache-keys.js";
+
+// Pattern for your existing list-project service.
+// Keep your actual repository and access-check function names.
+export async function listProjectsWithCache({
+  teamId,
+  userId,
+  page = 1,
+  limit = 10,
+  search = "",
+}) {
+  // 1. Always check access before reading cached data.
+  // Call your existing team/project authorization logic here.
+  await assertTeamMembership({ teamId, userId });
+
+  // 2. Build a key for this user and query combination.
+  const cacheKey = projectListCacheKey({
+    teamId,
+    userId,
+    page,
+    limit,
+    search,
+  });
+
+  // 3. Return cache if available.
+  const cached = await getCache(cacheKey);
+
+  if (cached !== null) {
+    return cached;
+  }
+
+  // 4. On cache miss, fetch using your existing repository.
+  const result = await listProjectsFromDatabase({
+    teamId,
+    userId,
+    page,
+    limit,
+    search,
+  });
+
+  // 5. Cache briefly, then return the result.
+  await setCache(cacheKey, result, 60);
+
+  return result;
+}
 
 export async function createProjectService({
   teamId,
@@ -55,7 +108,40 @@ export async function listProjectsService({
 
   return result;
 }
+export async function updateProjectService({
+  teamId,
+  projectId,
+  userId,
+  name,
+  description,
+}) {
+  if (!userId) {
+    const error = new Error("Authentication required");
+    error.statusCode = 401;
+    throw error;
+  }
 
+  return updateProject({
+    teamId,
+    projectId,
+    userId,
+    name,
+    description,
+  });
+}
+export async function deleteProjectService({ teamId, projectId, userId }) {
+  if (!userId) {
+    const error = new Error("Authentication required");
+    error.statusCode = 401;
+    throw error;
+  }
+
+  return deleteProject({
+    teamId,
+    projectId,
+    userId,
+  });
+}
 export async function getProjectDetailsService({ teamId, projectId, userId }) {
   if (!userId) {
     const error = new Error("Authentication required");
